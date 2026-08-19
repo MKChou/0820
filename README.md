@@ -44,6 +44,32 @@ py -3 test.py
 2. 按下 **Enter**  
 3. 產生 `TTS/output.mp3` 並用系統播放器播放  
 
+## 樹莓派
+
+不要用 `py`（那是 Windows 指令）。請用虛擬環境：
+
+```bash
+cd ~/Desktop/0820
+sudo apt update
+sudo apt install -y python3-venv python3-full libportaudio2 alsa-utils
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install -r requirements.txt
+cd ASR
+python test.py
+```
+
+之後每次：
+
+```bash
+cd ~/Desktop/0820
+source .venv/bin/activate
+cd ASR
+python test.py
+```
+
+USB 麥克風若出現 `Invalid sample rate`，程式會改用麥克風支援的取樣率，再轉成學校 ASR 要的 16 kHz；仍失敗則改用 `arecord`。
+
 ## 注意
 
 - 需要 Python 3.9 以上，安裝時勾選 Add to PATH  
