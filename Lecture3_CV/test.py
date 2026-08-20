@@ -1,4 +1,4 @@
-"""CV demo: live camera. O = face detection, P = pose detection, Q/Esc = quit."""
+"""CV demo: live camera. O = face, P = pose, G = gesture, Q/Esc = quit."""
 
 from __future__ import annotations
 
@@ -27,6 +27,20 @@ POSE_MODEL_URL = (
     "https://storage.googleapis.com/mediapipe-models/"
     "pose_landmarker/pose_landmarker_lite/float16/latest/"
     "pose_landmarker_lite.task"
+)
+GESTURE_MODEL_URL = (
+    "https://storage.googleapis.com/mediapipe-models/"
+    "gesture_recognizer/gesture_recognizer/float16/latest/"
+    "gesture_recognizer.task"
+)
+
+HAND_CONNECTIONS = (
+    (0, 1), (1, 2), (2, 3), (3, 4),
+    (0, 5), (5, 6), (6, 7), (7, 8),
+    (5, 9), (9, 10), (10, 11), (11, 12),
+    (9, 13), (13, 14), (14, 15), (15, 16),
+    (13, 17), (17, 18), (18, 19), (19, 20),
+    (0, 17),
 )
 
 POSE_CONNECTIONS = (
@@ -58,11 +72,12 @@ def open_camera() -> cv2.VideoCapture | None:
     return None
 
 
-def draw_status(frame, face_on: bool, pose_on: bool) -> None:
+def draw_status(frame, face_on: bool, pose_on: bool, gesture_on: bool) -> None:
     lines = [
-        "O: Face   P: Pose   Q: Quit",
+        "O: Face   P: Pose   G: Gesture   Q: Quit",
         f"Face: {'ON' if face_on else 'OFF'}",
         f"Pose: {'ON' if pose_on else 'OFF'}",
+        f"Gesture: {'ON' if gesture_on else 'OFF'}",
     ]
     y = 28
     for line in lines:
@@ -102,12 +117,42 @@ def draw_pose(frame, landmarks) -> None:
         cv2.circle(frame, (x, y), 3, (0, 255, 255), -1)
 
 
+def draw_gestures(frame, result) -> None:
+    h, w = frame.shape[:2]
+    hands = result.hand_landmarks or []
+    gestures = result.gestures or []
+    for index, landmarks in enumerate(hands):
+        points = [(int(lm.x * w), int(lm.y * h)) for lm in landmarks]
+        for i, j in HAND_CONNECTIONS:
+            if i < len(points) and j < len(points):
+                cv2.line(frame, points[i], points[j], (0, 165, 255), 2)
+        for x, y in points:
+            cv2.circle(frame, (x, y), 3, (255, 255, 0), -1)
+
+        label = "None"
+        if index < len(gestures) and gestures[index]:
+            label = gestures[index][0].category_name or "None"
+        if points:
+            cv2.putText(
+                frame,
+                label,
+                (points[0][0] + 8, points[0][1] - 8),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.8,
+                (0, 255, 255),
+                2,
+                cv2.LINE_AA,
+            )
+
+
 class Detectors:
     def __init__(self) -> None:
         self.face_on = False
         self.pose_on = False
+        self.gesture_on = False
         self.face = None
         self.pose = None
+        self.gesture = None
         self.start_ms = int(time.time() * 1000)
 
     def _timestamp_ms(self) -> int:
@@ -143,8 +188,24 @@ class Detectors:
             self.pose.close()
             self.pose = None
 
+    def toggle_gesture(self) -> None:
+        if not mediapipe_ready():
+            return
+        self.gesture_on = not self.gesture_on
+        if self.gesture_on and self.gesture is None:
+            model_path = ensure_model(GESTURE_MODEL_URL, "gesture_recognizer.task")
+            options = vision.GestureRecognizerOptions(
+                base_options=mp.tasks.BaseOptions(model_asset_path=str(model_path)),
+                running_mode=vision.RunningMode.VIDEO,
+                num_hands=2,
+            )
+            self.gesture = vision.GestureRecognizer.create_from_options(options)
+        elif not self.gesture_on and self.gesture is not None:
+            self.gesture.close()
+            self.gesture = None
+
     def apply(self, frame):
-        if not self.face_on and not self.pose_on:
+        if not self.face_on and not self.pose_on and not self.gesture_on:
             return frame
 
         rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
@@ -161,6 +222,11 @@ class Detectors:
             if result.pose_landmarks:
                 draw_pose(frame, result.pose_landmarks[0])
 
+        if self.gesture_on and self.gesture is not None:
+            result = self.gesture.recognize_for_video(mp_image, timestamp_ms)
+            if result.hand_landmarks:
+                draw_gestures(frame, result)
+
         return frame
 
     def close(self) -> None:
@@ -170,6 +236,9 @@ class Detectors:
         if self.pose is not None:
             self.pose.close()
             self.pose = None
+        if self.gesture is not None:
+            self.gesture.close()
+            self.gesture = None
 
 
 def main() -> None:
@@ -190,7 +259,7 @@ def main() -> None:
                 break
 
             frame = detectors.apply(frame)
-            draw_status(frame, detectors.face_on, detectors.pose_on)
+            draw_status(frame, detectors.face_on, detectors.pose_on, detectors.gesture_on)
             cv2.imshow("Camera", frame)
 
             key = cv2.waitKey(1) & 0xFF
@@ -200,6 +269,8 @@ def main() -> None:
                 detectors.toggle_face()
             elif key in (ord("p"), ord("P")):
                 detectors.toggle_pose()
+            elif key in (ord("g"), ord("G")):
+                detectors.toggle_gesture()
     finally:
         detectors.close()
         cap.release()
