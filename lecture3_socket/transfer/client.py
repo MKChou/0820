@@ -3,7 +3,7 @@ import socket
 import json
 import os
 ## >> PARAMETERS
-CONNECT_HOST = "192.168.0.113"
+CONNECT_HOST = "127.0.0.1"
 CONNECT_PORT = 1277
 FILE_TO_SEND = "./src/greet.txt"
 FILE_RECEIVE = "./src/farewell.txt"

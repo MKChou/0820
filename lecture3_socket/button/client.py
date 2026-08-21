@@ -1,6 +1,6 @@
 import socket
 ## >> PARAMETERS
-CONNECT_HOST = "192.168.0.113"
+CONNECT_HOST = "127.0.0.1"
 CONNECT_PORT = 1275
 ## << PARAMETERS
 client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)

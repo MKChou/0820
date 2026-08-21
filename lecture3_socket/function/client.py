@@ -1,7 +1,7 @@
 import socket
 import json
 ## >> PARAMETERS 
-CONNECT_HOST = "192.168.0.113"
+CONNECT_HOST = "127.0.0.1"
 CONNECT_PORT = 1127
 END_OF_DATA  = "@@@@@@"
 ## << PARAMETERS
